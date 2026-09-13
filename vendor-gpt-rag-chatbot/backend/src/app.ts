@@ -1,5 +1,4 @@
 import { fileURLToPath } from "node:url";
-import fs from "node:fs";
 import path from "node:path";
 import "dotenv/config";
 import cors from "cors";
@@ -11,21 +10,7 @@ import { TfidfRetriever } from "./rag/retriever.js";
 import { RagChatService } from "./rag/service.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// __dirname-relative resolves correctly for local `pnpm dev` (tsx runs
-// src/app.ts directly) and for the Docker image (dist/app.js sits next to
-// kb/ after `npm run build`). On Vercel the file gets bundled/relocated, so
-// __dirname at runtime no longer points at a useful location -- fall back to
-// process.cwd(), which Vercel sets to the function's project root. We also
-// declare kb/** in vercel.json's `includeFiles` so it's bundled regardless of
-// which of these static-analysis paths Vercel's bundler manages to trace.
-const KB_PATH_CANDIDATES = [
-  path.join(__dirname, "..", "kb", "knowledge_base.json"),
-  path.join(process.cwd(), "kb", "knowledge_base.json"),
-];
-const KB_PATH =
-  KB_PATH_CANDIDATES.find((p) => fs.existsSync(p)) ?? KB_PATH_CANDIDATES[0];
-
+const KB_PATH = path.join(__dirname, "..", "kb", "knowledge_base.json");
 const PORT = Number(process.env.PORT ?? 8000);
 
 const app = express();
@@ -96,15 +81,6 @@ app.post("/api/chat", async (req: Request, res: Response) => {
   }
 });
 
-// On Vercel, this module is imported by api/index.ts and invoked as a
-// serverless function per-request -- there's no long-running process to
-// bind a port to, and calling listen() there is unnecessary (Vercel sets
-// the VERCEL env var automatically at runtime). Local `pnpm dev` and the
-// Docker image both still start a normal server.
-if (!process.env.VERCEL) {
-  app.listen(PORT, () => {
-    console.log(`Vendor-GPT chatbot backend listening on port ${PORT}`);
-  });
-}
-
-export default app;
+app.listen(PORT, () => {
+  console.log(`Vendor-GPT chatbot backend listening on port ${PORT}`);
+});

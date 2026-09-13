@@ -9,7 +9,10 @@ import { LogoIcon } from "../components/ui/Logo";
  * as a standalone /chat route rather than a floating widget.
  */
 
-const API_BASE_URL = import.meta.env.VITE_CHAT_API_URL ?? "http://localhost:8000";
+// Defaults to same-origin ("") so production calls the /api/chat serverless
+// function in this Vercel deployment. For a separately hosted backend (e.g. the
+// local Express server on :8000), set VITE_CHAT_API_URL.
+const API_BASE_URL = import.meta.env.VITE_CHAT_API_URL ?? "";
 
 type Role = "user" | "assistant";
 
