@@ -20,7 +20,7 @@ export interface ChatResult {
 export class RagChatService {
   constructor(
     private retriever: Retriever,
-    private groqClient: GroqChatClient,
+    private groqClient: GroqChatClient | null,
     private topK = 4
   ) {}
 
@@ -37,6 +37,20 @@ export class RagChatService {
       return { reply: guardrails.REFUSAL_MESSAGE, refused: true, sources: [] };
     }
 
+    const sources: Source[] = retrieved.map((r) => ({
+      id: r.chunk.id,
+      title: r.chunk.title,
+      category: r.chunk.category,
+    }));
+
+    if (!this.groqClient) {
+      return {
+        reply: retrieved[0]?.chunk.content ?? "No matching knowledge base entry found.",
+        refused: false,
+        sources,
+      };
+    }
+
     const systemPrompt = guardrails.buildSystemPrompt(retrieved);
     const llmMessages = this.buildLlmMessages(history, clipped);
 
@@ -44,15 +58,7 @@ export class RagChatService {
 
     const { reply, refused } = guardrails.postprocessReply(rawReply);
 
-    const sources: Source[] = refused
-      ? []
-      : retrieved.map((r) => ({
-          id: r.chunk.id,
-          title: r.chunk.title,
-          category: r.chunk.category,
-        }));
-
-    return { reply, refused, sources };
+    return { reply, refused, sources: refused ? [] : sources };
   }
 
   private buildLlmMessages(history: ChatTurn[], message: string): ChatTurn[] {

@@ -1,5 +1,6 @@
 {
-  "description": "Automates WhatsApp client communication with AI-powered replies to save time, cut costs, and help businesses scale support efficiently.",
+  "title": "Vendor-GPT — AI-powered vendor ecosystem",
+  "description": "AI-powered WhatsApp vendor ecosystem and RAG intelligence platform",
   "robots": {
     "index": false
   },

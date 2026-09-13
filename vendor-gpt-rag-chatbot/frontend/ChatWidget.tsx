@@ -11,7 +11,15 @@ import { useEffect, useRef, useState } from "react";
  * <Footer />) -- it's fixed-positioned and renders its own launcher button.
  */
 
-const API_BASE_URL = import.meta.env.VITE_CHAT_API_URL ?? "http://localhost:8000";
+function getApiBaseUrl(): string {
+  const envUrl = (import.meta.env.VITE_CHAT_API_URL ?? "").trim();
+  if (!envUrl || envUrl.includes("localhost") || envUrl.includes("127.0.0.1")) {
+    return "";
+  }
+  return envUrl.replace(/\/$/, "");
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 type Role = "user" | "assistant";
 

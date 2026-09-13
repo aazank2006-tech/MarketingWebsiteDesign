@@ -12,15 +12,24 @@ import { TfidfRetriever, type Chunk } from "./_lib/retriever";
 import { GroqChatClient, GroqClientError, type ChatTurn } from "./_lib/groqClient";
 import { RagChatService } from "./_lib/service";
 
-// Built once per warm serverless instance and reused across invocations.
+// Built once per warm instance and reused across invocations.
 const retriever = new TfidfRetriever(kb as Chunk[]);
 
 let service: RagChatService | null = null;
-let initError: string | null = null;
-try {
-  service = new RagChatService(retriever, new GroqChatClient());
-} catch (err) {
-  initError = (err as Error).message;
+
+function getService(): RagChatService {
+  if (!service) {
+    let groqClient: GroqChatClient | null = null;
+    if (process.env.GROQ_API_KEY) {
+      try {
+        groqClient = new GroqChatClient();
+      } catch (err) {
+        console.warn("Groq initialization warning:", err);
+      }
+    }
+    service = new RagChatService(retriever, groqClient);
+  }
+  return service;
 }
 
 function isValidHistory(value: unknown): value is ChatTurn[] {
@@ -43,10 +52,7 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  if (!service) {
-    res.status(503).json({ detail: initError ?? "Chat service unavailable." });
-    return;
-  }
+  const chatService = getService();
 
   const body = req.body ?? {};
   const message = typeof body.message === "string" ? body.message : "";
@@ -58,7 +64,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const result = await service.answer(message, history);
+    const result = await chatService.answer(message, history);
     res.status(200).json(result);
   } catch (err) {
     if (err instanceof GroqClientError) {

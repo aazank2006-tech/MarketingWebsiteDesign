@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
 
 import siteConfiguration from './.figma/make/site.json'
+import chatHandler from './api/chat'
 
 // Vite config — https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -19,32 +20,136 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
+      apiRoutesPlugin(),
       figmaSiteConfiguration(siteConfiguration),
       figmaErrorOverlayReplay(),
       figmaReactRefreshBoundaryFallback(),
       figmaMakeKitPlugin({ storiesGlob: '/src/**/*.stories.{ts,tsx,js,jsx}' }),
     ],
+    define: {
+      'import.meta.env.VITE_CHAT_API_URL': JSON.stringify(''),
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
       },
     },
     server: {
-      host: process.env.FIGMA_DEV_SERVER_HOST || '0.0.0.0',
-      port: parseInt(process.env.PORT || '8443'),
+      host: '0.0.0.0',
+      port: 3000,
+      allowedHosts: true,
       strictPort: true,
       watch: {
         ignored: [
           '**/.figma/**',
-],
+        ],
       },
     },
     preview: {
-      host: process.env.FIGMA_DEV_SERVER_HOST || '0.0.0.0',
-      port: parseInt(process.env.PORT || '8443'),
+      host: '0.0.0.0',
+      port: 3000,
     },
   }
 })
+
+/** Handles /api/health and /api/chat endpoints within Vite dev and preview servers. */
+function apiRoutesPlugin(): Plugin {
+  const handler = async (req: any, res: any, next: any) => {
+    const url = req.url?.split('?')[0] || ''
+
+    if (req.method === 'OPTIONS' && (url === '/api/health' || url === '/api/chat')) {
+      res.setHeader('Access-Control-Allow-Origin', '*')
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+      res.statusCode = 204
+      res.end()
+      return
+    }
+
+    if (url === '/api/health' && (req.method === 'GET' || req.method === 'HEAD')) {
+      res.setHeader('Access-Control-Allow-Origin', '*')
+      res.setHeader('Content-Type', 'application/json')
+      res.statusCode = 200
+      res.end(
+        JSON.stringify({
+          status: 'ok',
+          groq_configured: Boolean(process.env.GROQ_API_KEY),
+        }),
+      )
+      return
+    }
+
+    if (url === '/api/chat') {
+      res.setHeader('Access-Control-Allow-Origin', '*')
+      if (req.method !== 'POST') {
+        res.setHeader('Allow', 'POST')
+        res.statusCode = 405
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({ detail: 'Method not allowed.' }))
+        return
+      }
+
+      const processRequest = async (body: any) => {
+        const mockReq = { method: 'POST', body }
+        const mockRes = {
+          setHeader: (k: string, v: string) => res.setHeader(k, v),
+          status: (code: number) => {
+            res.statusCode = code
+            return {
+              json: (data: any) => {
+                res.setHeader('Content-Type', 'application/json')
+                res.end(JSON.stringify(data))
+              },
+            }
+          },
+        }
+
+        try {
+          await chatHandler(mockReq, mockRes)
+        } catch (err) {
+          res.statusCode = 500
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ detail: (err as Error).message || 'Server error' }))
+        }
+      }
+
+      if (req.body && typeof req.body === 'object') {
+        await processRequest(req.body)
+        return
+      }
+
+      let bodyStr = ''
+      req.on('data', (chunk: any) => {
+        bodyStr += chunk
+      })
+      req.on('end', async () => {
+        let body: any = {}
+        try {
+          body = JSON.parse(bodyStr || '{}')
+        } catch {
+          res.statusCode = 400
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ detail: 'Invalid JSON body.' }))
+          return
+        }
+        await processRequest(body)
+      })
+      return
+    }
+
+    next()
+  }
+
+  return {
+    name: 'api-routes',
+    configureServer(server) {
+      server.middlewares.use(handler)
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(handler)
+    },
+  }
+}
 
 type FigmaSiteConfiguration = {
   title?: string

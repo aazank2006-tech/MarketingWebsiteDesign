@@ -9,10 +9,17 @@ import { LogoIcon } from "../components/ui/Logo";
  * as a standalone /chat route rather than a floating widget.
  */
 
-// Defaults to same-origin ("") so production calls the /api/chat serverless
-// function in this Vercel deployment. For a separately hosted backend (e.g. the
-// local Express server on :8000), set VITE_CHAT_API_URL.
-const API_BASE_URL = import.meta.env.VITE_CHAT_API_URL ?? "";
+function getApiBaseUrl(): string {
+  const envUrl = (import.meta.env.VITE_CHAT_API_URL ?? "").trim();
+  // When running in a browser, ignore localhost/127.0.0.1 URLs because the client
+  // browser cannot connect to localhost:8000 in cloud sandbox environments.
+  if (!envUrl || envUrl.includes("localhost") || envUrl.includes("127.0.0.1")) {
+    return "";
+  }
+  return envUrl.replace(/\/$/, "");
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 type Role = "user" | "assistant";
 
@@ -84,8 +91,13 @@ export default function ChatPage() {
         ...prev,
         { role: "assistant", content: data.reply, refused: data.refused },
       ]);
-    } catch {
-      setError("Something went wrong reaching the assistant. Please try again.");
+    } catch (err: unknown) {
+      console.error("Chat error:", err);
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : "Something went wrong reaching the assistant. Please try again.";
+      setError(message);
     } finally {
       setLoading(false);
     }
