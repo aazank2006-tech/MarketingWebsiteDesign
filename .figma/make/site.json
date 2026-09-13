@@ -1,0 +1,10 @@
+{
+  "description": "Automates WhatsApp client communication with AI-powered replies to save time, cut costs, and help businesses scale support efficiently.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
